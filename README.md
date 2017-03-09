@@ -1,3 +1,7 @@
+# Boost Gauge
+
+This is the code for a gauge built using a Beaglebine, 128x128 SPI-based OLED display, and Neopixel ring. WIP.
+
 
 ## Compiling
 
