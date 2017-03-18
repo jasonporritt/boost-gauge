@@ -163,15 +163,16 @@ void draw_graph(Cairo::RefPtr<Cairo::Context> cr, float boost_psi_current) {
   cr->restore();
 }
 
-void render(Cairo::RefPtr<Cairo::Surface> surface, float boost_psi_current, float boost_psi_max, int iat, int knock) {
+Cairo::RefPtr<Cairo::Context> setup(Cairo::RefPtr<Cairo::Surface> surface) {
   Cairo::RefPtr<Cairo::Context> cr = Cairo::Context::create(surface);
-
+  draw_gauge_background(cr);
+  return cr;
+}
+void render(Cairo::RefPtr<Cairo::Context> cr, float boost_psi_current, float boost_psi_max, int iat, int knock) {
   cr->save(); // save the state of the context
-
   draw_gauge_background(cr);
   draw_numbers(cr, boost_psi_current, boost_psi_max, iat, knock);
-  draw_graph(cr, boost_psi_current);
-
+  // draw_graph(cr, boost_psi_current);
 }
 
 int main()
@@ -192,30 +193,43 @@ int main()
   #ifdef __linux__
   struct fb_var_screeninfo screen_info;
   struct fb_fix_screeninfo fixed_info;
-  unsigned char *buffer = NULL;
+  unsigned char *front_buffer = NULL;
+  unsigned char *back_buffer = NULL;
   size_t buflen;
   int fd = -1;
   int r = 1;
 
+  std::cout << "about to open fb0\n" << std::flush;
   fd = open("/dev/fb0", O_RDWR);
   if (fd >= 0)
   {
+    std::cout << "opened fb0\n" << std::flush;
     if (!ioctl(fd, FBIOGET_VSCREENINFO, &screen_info) &&
         !ioctl(fd, FBIOGET_FSCREENINFO, &fixed_info))
     {
         buflen = screen_info.yres_virtual * fixed_info.line_length;
-        buffer = (unsigned char *) mmap(NULL,
+        std::cout << "got buffer size:" << buflen << "\n" << std::flush;
+        front_buffer = (unsigned char *) mmap(NULL,
                       buflen,
                       PROT_READ|PROT_WRITE,
                       MAP_SHARED,
                       fd,
                       0);
-        if (buffer != MAP_FAILED)
-        {
-            Cairo::RefPtr<Cairo::ImageSurface> surface = Cairo::ImageSurface::create(buffer, Cairo::FORMAT_RGB16_565, 128, 128, Cairo::ImageSurface::format_stride_for_width(Cairo::FORMAT_RGB16_565, screen_info.xres_virtual));
+        back_buffer = new unsigned char[buflen];
 
+        if (front_buffer != MAP_FAILED)
+        {
+            Cairo::RefPtr<Cairo::ImageSurface> surface = Cairo::ImageSurface::create(back_buffer, Cairo::FORMAT_RGB16_565, 128, 128, Cairo::ImageSurface::format_stride_for_width(Cairo::FORMAT_RGB16_565, screen_info.xres_virtual));
+
+            std::cout << "setting up surface... " << std::flush;
+            Cairo::RefPtr<Cairo::Context> context = setup(surface);
+            std::cout << "done setting up surface\n" << std::flush;
+
+            struct fb_var_screeninfo vinfo;
             while (1) {
-              render(surface, boost_psi, boost_psi_max, iat, knock);
+              render(context, boost_psi, boost_psi_max, iat, knock);
+              memcpy(front_buffer, back_buffer, buflen);
+              
 
               boost_psi += boost_psi_step;
               if (boost_psi > 21.8 || boost_psi < -32.0)
@@ -258,14 +272,15 @@ int main()
   /*
   * Clean up
   */
-  if (buffer && buffer != MAP_FAILED)
-    munmap(buffer, buflen);
+  if (front_buffer && front_buffer != MAP_FAILED)
+    munmap(front_buffer, buflen);
   if (fd >= 0)
     close(fd);
 
   return r;
 #else
     Cairo::RefPtr<Cairo::ImageSurface> surface = Cairo::ImageSurface::create(Cairo::FORMAT_ARGB32, 128, 128);
+    setup(surface);
     render(surface, -18.2, 9.1, 81, 3);
 
 #ifdef CAIRO_HAS_PNG_FUNCTIONS
