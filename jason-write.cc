@@ -4,6 +4,7 @@
 #include <cairommconfig.h>
 #include <cairomm/context.h>
 #include <cairomm/surface.h>
+#include <cairomm/quartz_surface.h>
 
 #include <sys/types.h>
 #include <sys/ioctl.h>
@@ -162,7 +163,7 @@ void draw_graph(Cairo::RefPtr<Cairo::Context> cr, float boost_psi_current) {
   cr->restore();
 }
 
-void render(Cairo::RefPtr<Cairo::ImageSurface> surface, float boost_psi_current, float boost_psi_max, int iat, int knock) {
+void render(Cairo::RefPtr<Cairo::Surface> surface, float boost_psi_current, float boost_psi_max, int iat, int knock) {
   Cairo::RefPtr<Cairo::Context> cr = Cairo::Context::create(surface);
 
   cr->save(); // save the state of the context
@@ -175,6 +176,19 @@ void render(Cairo::RefPtr<Cairo::ImageSurface> surface, float boost_psi_current,
 
 int main()
 {
+  float boost_psi = 0;
+  float boost_psi_max = 0;
+  int iat = 70;
+  int knock = 0;
+
+  // Simulation stuff
+  float boost_psi_step = 0.01;
+  int iat_count_interval = 25;
+  int iat_step = 1;
+  int knock_count_interval = 100;
+  int knock_step = 1;
+  int loop_counter = 0;
+
   #ifdef __linux__
   struct fb_var_screeninfo screen_info;
   struct fb_fix_screeninfo fixed_info;
@@ -198,18 +212,31 @@ int main()
                       0);
         if (buffer != MAP_FAILED)
         {
-          /*
-            * TODO: something interesting here.
-            * "buffer" now points to screen pixels.
-            * Each individual pixel might be at:
-            *    buffer + x * screen_info.bits_per_pixel/8
-            *           + y * fixed_info.line_length
-            * Then you can write pixels at locations such as that.
-            */
-
             Cairo::RefPtr<Cairo::ImageSurface> surface = Cairo::ImageSurface::create(buffer, Cairo::FORMAT_RGB16_565, 128, 128, Cairo::ImageSurface::format_stride_for_width(Cairo::FORMAT_RGB16_565, screen_info.xres_virtual));
 
-            render(surface, 19.7, 20.1, 135, 0);
+            while (1) {
+              render(surface, boost_psi, boost_psi_max, iat, knock);
+
+              boost_psi += boost_psi_step;
+              if (boost_psi > 21.8 || boost_psi < -32.0)
+                boost_psi_step = boost_psi_step * -1;
+
+              if (loop_counter % iat_count_interval == 0) {
+                iat += iat_step;
+                if (iat > 250 || iat < -20)
+                  iat_step = iat_step * -1;
+              }
+              if (loop_counter % knock_count_interval == 0) {
+                knock += knock_step;
+                if (knock > 98 || knock < 1)
+                  knock_step = knock_step * -1;
+              }
+
+              if (boost_psi_max < boost_psi) 
+                boost_psi_max = boost_psi;
+
+              loop_counter++;
+            }
 
             r = 0;   /* Indicate success */
         }
@@ -242,10 +269,10 @@ int main()
     render(surface, -18.2, 9.1, 81, 3);
 
 #ifdef CAIRO_HAS_PNG_FUNCTIONS
-      std::string filename = "image.png";
-      surface->write_to_png(filename);
-
-      std::cout << "Wrote png file \"" << filename << "\"" << std::endl;
+//       std::string filename = "image.png";
+//       surface->write_to_png(filename);
+//
+//       std::cout << "Wrote png file \"" << filename << "\"" << std::endl;
 #endif
 #endif
 }
