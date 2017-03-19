@@ -1,4 +1,5 @@
 #include <string>
+#include <cstring>
 #include <stdio.h>
 #include <iostream>
 #include <cairommconfig.h>
@@ -68,7 +69,7 @@ void draw_gauge_background(Cairo::RefPtr<Cairo::Context> cr) {
 
   // BOOST label
   cr->get_text_extents(BOOST_LABEL, extents);
-  cr->move_to(BOOST_X_CENTER-(extents.width/2 + extents.x_bearing), 12);
+  cr->move_to(BOOST_X_CENTER-(extents.width/2 + extents.x_bearing), 11);
   cr->show_text(BOOST_LABEL);
 
   // IAT label
@@ -93,7 +94,6 @@ void draw_gauge_background(Cairo::RefPtr<Cairo::Context> cr) {
 void draw_numbers(Cairo::RefPtr<Cairo::Context> cr, float boost_psi_current, float boost_psi_max, int iat, int knock) {
   cr->save();
 
-  cr->set_source(white_color);
   cr->set_font_face(number_font);
 
   // Boost
@@ -203,7 +203,7 @@ Cairo::RefPtr<Cairo::Context> setup(Cairo::RefPtr<Cairo::Surface> surface) {
 }
 void render(Cairo::RefPtr<Cairo::Context> cr, float boost_psi_current, float boost_psi_max, int iat, int knock) {
   cr->save(); // save the state of the context
-  draw_gauge_background(cr);
+  // draw_gauge_background(cr);
   draw_numbers(cr, boost_psi_current, boost_psi_max, iat, knock);
   // draw_graph(cr, boost_psi_current);
 }
