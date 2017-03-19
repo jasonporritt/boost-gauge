@@ -42,6 +42,7 @@ const Cairo::RefPtr<Cairo::SolidPattern> green_color = Cairo::SolidPattern::crea
 const Cairo::RefPtr<Cairo::SolidPattern> blue_color = Cairo::SolidPattern::create_rgb(0.38, 0.66, 1.0);
 const Cairo::RefPtr<Cairo::SolidPattern> white_color = Cairo::SolidPattern::create_rgb(1.0, 1.0, 1.0);
 const Cairo::RefPtr<Cairo::SolidPattern> gray_color = Cairo::SolidPattern::create_rgb(0.6, 0.6, 0.6);
+const Cairo::RefPtr<Cairo::SolidPattern> black_color = Cairo::SolidPattern::create_rgb(0.0, 0.0, 0.0);
 
 const Cairo::RefPtr<Cairo::ToyFontFace> number_font =
   Cairo::ToyFontFace::create("Eurostile",
@@ -54,7 +55,7 @@ const Cairo::RefPtr<Cairo::ToyFontFace> label_font =
 
 void draw_gauge_background(Cairo::RefPtr<Cairo::Context> cr) {
   cr->save();
-  cr->paint(); // fill image with the color
+  cr->paint();
 
   // Draw labels
   cr->set_source(gray_color);
@@ -63,26 +64,31 @@ void draw_gauge_background(Cairo::RefPtr<Cairo::Context> cr) {
 
   // BOOST label
   cr->get_text_extents(BOOST_LABEL, extents);
-  cr->move_to(64-(extents.width/2 + extents.x_bearing), 12);
+  cr->move_to(BOOST_X_CENTER-(extents.width/2 + extents.x_bearing), 12);
   cr->show_text(BOOST_LABEL);
 
   // IAT label
   cr->get_text_extents(IAT_LABEL, extents);
-  cr->move_to(20-(extents.width/2 + extents.x_bearing), 110);
+  cr->move_to(IAT_X_CENTER-(extents.width/2 + extents.x_bearing), 110);
   cr->show_text(IAT_LABEL);
 
   // P.MAX label
   cr->get_text_extents(PMAX_LABEL, extents);
-  cr->move_to(70-(extents.width/2 + extents.x_bearing), 110);
+  cr->move_to(PMAX_X_CENTER-(extents.width/2 + extents.x_bearing), 110);
   cr->show_text(PMAX_LABEL);
 
   // Knock label
   cr->get_text_extents(KNOCK_LABEL, extents);
-  cr->move_to(118-(extents.width/2 + extents.x_bearing), 110);
+  cr->move_to(KNOCK_X_CENTER-(extents.width/2 + extents.x_bearing), 110);
   cr->show_text(KNOCK_LABEL);
 
   cr->restore();
 }
+
+char last_boost_psi_current_formatted = "";
+char last_boost_psi_max_formatted = "";
+char last_iat_formatted = "";
+char last_knock_formatted = "";
 
 void draw_numbers(Cairo::RefPtr<Cairo::Context> cr, float boost_psi_current, float boost_psi_max, int iat, int knock) {
   cr->save();
@@ -92,51 +98,63 @@ void draw_numbers(Cairo::RefPtr<Cairo::Context> cr, float boost_psi_current, flo
 
   // Boost
   snprintf(boost_psi_current_formatted, 7, "% 3.1f", boost_psi_current);
-  if (boost_psi_current < 0)
-    cr->set_source(blue_color);
-  else if (boost_psi_current < BOOST_PSI_MAX)
-    cr->set_source(green_color);
-  else
-    cr->set_source(red_color);
-  cr->set_font_size(45.0);
-  cr->get_text_extents(boost_psi_current_formatted, extents);
-  cr->move_to(BOOST_X_CENTER-(extents.width/2 + extents.x_bearing), 45);
-  cr->show_text(boost_psi_current_formatted);
+  if (std::strcmp(boost_psi_current_formatted, last_boost_psi_current_formatted) == 0) {
+    strncpy(last_boost_psi_current_formatted, boost_psi_current_formatted, 7);
+    if (boost_psi_current < 0)
+      cr->set_source(blue_color);
+    else if (boost_psi_current < BOOST_PSI_MAX)
+      cr->set_source(green_color);
+    else
+      cr->set_source(red_color);
+    cr->set_font_size(45.0);
+    cr->get_text_extents(boost_psi_current_formatted, extents);
+    cr->move_to(BOOST_X_CENTER-(extents.width/2 + extents.x_bearing), 45);
+    cr->show_text(boost_psi_current_formatted);
+  }
 
   // IAT
   snprintf(iat_formatted, 5, "% 3d", iat);
-  if (iat > IAT_HOT_THRESHOLD)
-    cr->set_source(red_color);
-  else if (iat < IAT_COLD_THRESHOLD)
-    cr->set_source(blue_color);
-  else
-    cr->set_source(green_color);
-  cr->set_font_size(16.0);
-  cr->get_text_extents(iat_formatted, extents);
-  cr->move_to(IAT_X_CENTER-(extents.width/2 + extents.x_bearing), 126);
-  cr->show_text(iat_formatted);
+  if (std::strcmp(iat_formatted, last_iat_formatted) == 0) {
+    strncpy(last_iat_formatted, iat_formatted, 5);
+    if (iat > IAT_HOT_THRESHOLD)
+      cr->set_source(red_color);
+    else if (iat < IAT_COLD_THRESHOLD)
+      cr->set_source(blue_color);
+    else
+      cr->set_source(green_color);
+    cr->set_font_size(16.0);
+    cr->get_text_extents(iat_formatted, extents);
+    cr->move_to(IAT_X_CENTER-(extents.width/2 + extents.x_bearing), 126);
+    cr->show_text(iat_formatted);
+  }
 
   // P. MAX
   snprintf(boost_psi_max_formatted, 6, "% 2.1f", boost_psi_max);
-  if (boost_psi_max < 0)
-    cr->set_source(blue_color);
-  else if (boost_psi_max < BOOST_PSI_MAX)
-    cr->set_source(green_color);
-  else
-    cr->set_source(red_color);
-  cr->get_text_extents(boost_psi_max_formatted, extents);
-  cr->move_to(PMAX_X_CENTER-(extents.width/2 + extents.x_bearing), 126);
-  cr->show_text(boost_psi_max_formatted);
+  if (std::strcmp(boost_psi_max_formatted, last_boost_psi_max_formatted) == 0) {
+    strncpy(last_boost_psi_max_formatted, boost_psi_max_formatted, 6);
+    if (boost_psi_max < 0)
+      cr->set_source(blue_color);
+    else if (boost_psi_max < BOOST_PSI_MAX)
+      cr->set_source(green_color);
+    else
+      cr->set_source(red_color);
+    cr->get_text_extents(boost_psi_max_formatted, extents);
+    cr->move_to(PMAX_X_CENTER-(extents.width/2 + extents.x_bearing), 126);
+    cr->show_text(boost_psi_max_formatted);
+  }
 
   // Knock
   snprintf(knock_formatted, 4, "%2d", knock);
-  if (knock > KNOCK_PROBLEM_THRESHOLD)
-    cr->set_source(red_color);
-  else
-    cr->set_source(green_color);
-  cr->get_text_extents(knock_formatted, extents);
-  cr->move_to(KNOCK_X_CENTER-(extents.width/2 + extents.x_bearing), 126);
-  cr->show_text(knock_formatted);
+  if (std::strcmp(knock_formatted, last_knock_formatted) == 0) {
+    strncpy(last_knock_formatted, knock_formatted, 4);
+    if (knock > KNOCK_PROBLEM_THRESHOLD)
+      cr->set_source(red_color);
+    else
+      cr->set_source(green_color);
+    cr->get_text_extents(knock_formatted, extents);
+    cr->move_to(KNOCK_X_CENTER-(extents.width/2 + extents.x_bearing), 126);
+    cr->show_text(knock_formatted);
+  }
 
   cr->restore();
 }
