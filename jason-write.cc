@@ -27,14 +27,18 @@ const std::string IAT_LABEL = "IAT";
 const std::string PMAX_LABEL = "P.MAX";
 const std::string KNOCK_LABEL = "K";
 const int BOOST_X_CENTER = 64;
-const int IAT_X_CENTER = 20;
-const int PMAX_X_CENTER = 70;
-const int KNOCK_X_CENTER = 118;
+const int IAT_X_CENTER = 16;
+const int PMAX_X_CENTER = 64;
+const int KNOCK_X_CENTER = 115;
 
 char boost_psi_current_formatted [7];
 char boost_psi_max_formatted [6];
 char iat_formatted [5];
 char knock_formatted [4];
+char last_boost_psi_current_formatted [7];
+char last_boost_psi_max_formatted [6];
+char last_iat_formatted [5];
+char last_knock_formatted [4];
 
 Cairo::TextExtents extents;
 const Cairo::RefPtr<Cairo::SolidPattern> red_color = Cairo::SolidPattern::create_rgb(0.83, 0.0, 0.6);
@@ -85,10 +89,6 @@ void draw_gauge_background(Cairo::RefPtr<Cairo::Context> cr) {
   cr->restore();
 }
 
-char last_boost_psi_current_formatted = "";
-char last_boost_psi_max_formatted = "";
-char last_iat_formatted = "";
-char last_knock_formatted = "";
 
 void draw_numbers(Cairo::RefPtr<Cairo::Context> cr, float boost_psi_current, float boost_psi_max, int iat, int knock) {
   cr->save();
@@ -98,8 +98,12 @@ void draw_numbers(Cairo::RefPtr<Cairo::Context> cr, float boost_psi_current, flo
 
   // Boost
   snprintf(boost_psi_current_formatted, 7, "% 3.1f", boost_psi_current);
-  if (std::strcmp(boost_psi_current_formatted, last_boost_psi_current_formatted) == 0) {
+  if (std::strcmp(boost_psi_current_formatted, last_boost_psi_current_formatted) != 0) {
     strncpy(last_boost_psi_current_formatted, boost_psi_current_formatted, 7);
+    cr->set_source(black_color);
+    cr->rectangle(0, 14, 128, 32);
+    cr->fill();
+
     if (boost_psi_current < 0)
       cr->set_source(blue_color);
     else if (boost_psi_current < BOOST_PSI_MAX)
@@ -112,17 +116,22 @@ void draw_numbers(Cairo::RefPtr<Cairo::Context> cr, float boost_psi_current, flo
     cr->show_text(boost_psi_current_formatted);
   }
 
+  cr->set_font_size(16.0);
+
   // IAT
   snprintf(iat_formatted, 5, "% 3d", iat);
-  if (std::strcmp(iat_formatted, last_iat_formatted) == 0) {
+  if (std::strcmp(iat_formatted, last_iat_formatted) != 0) {
     strncpy(last_iat_formatted, iat_formatted, 5);
+    cr->set_source(black_color);
+    cr->rectangle(IAT_X_CENTER - 16, 112, 32, 16);
+    cr->fill();
+
     if (iat > IAT_HOT_THRESHOLD)
       cr->set_source(red_color);
     else if (iat < IAT_COLD_THRESHOLD)
       cr->set_source(blue_color);
     else
       cr->set_source(green_color);
-    cr->set_font_size(16.0);
     cr->get_text_extents(iat_formatted, extents);
     cr->move_to(IAT_X_CENTER-(extents.width/2 + extents.x_bearing), 126);
     cr->show_text(iat_formatted);
@@ -130,8 +139,11 @@ void draw_numbers(Cairo::RefPtr<Cairo::Context> cr, float boost_psi_current, flo
 
   // P. MAX
   snprintf(boost_psi_max_formatted, 6, "% 2.1f", boost_psi_max);
-  if (std::strcmp(boost_psi_max_formatted, last_boost_psi_max_formatted) == 0) {
+  if (std::strcmp(boost_psi_max_formatted, last_boost_psi_max_formatted) != 0) {
     strncpy(last_boost_psi_max_formatted, boost_psi_max_formatted, 6);
+    cr->set_source(black_color);
+    cr->rectangle(PMAX_X_CENTER-25, 112, 50, 16);
+    cr->fill();
     if (boost_psi_max < 0)
       cr->set_source(blue_color);
     else if (boost_psi_max < BOOST_PSI_MAX)
@@ -145,8 +157,11 @@ void draw_numbers(Cairo::RefPtr<Cairo::Context> cr, float boost_psi_current, flo
 
   // Knock
   snprintf(knock_formatted, 4, "%2d", knock);
-  if (std::strcmp(knock_formatted, last_knock_formatted) == 0) {
+  if (std::strcmp(knock_formatted, last_knock_formatted) != 0) {
     strncpy(last_knock_formatted, knock_formatted, 4);
+    cr->set_source(black_color);
+    cr->rectangle(KNOCK_X_CENTER-15, 112, 30, 16);
+    cr->fill();
     if (knock > KNOCK_PROBLEM_THRESHOLD)
       cr->set_source(red_color);
     else
@@ -298,14 +313,14 @@ int main()
   return r;
 #else
     Cairo::RefPtr<Cairo::ImageSurface> surface = Cairo::ImageSurface::create(Cairo::FORMAT_ARGB32, 128, 128);
-    setup(surface);
-    render(surface, -18.2, 9.1, 81, 3);
+    Cairo::RefPtr<Cairo::Context> context = setup(surface);
+    render(context, -18.2, 9.1, -10, 3);
 
 #ifdef CAIRO_HAS_PNG_FUNCTIONS
-//       std::string filename = "image.png";
-//       surface->write_to_png(filename);
-//
-//       std::cout << "Wrote png file \"" << filename << "\"" << std::endl;
+      std::string filename = "image.png";
+      surface->write_to_png(filename);
+
+      std::cout << "Wrote png file \"" << filename << "\"" << std::endl;
 #endif
 #endif
 }
