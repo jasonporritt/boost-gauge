@@ -17,14 +17,31 @@ CFLAGS += \
 	-Wp,-MMD,$(dir $@).$(notdir $@).d \
 	-Wp,-MT,$@ \
 	-I. \
+	-IPixelBone \
 	-O2 \
 	-mtune=cortex-a8 \
 	-march=armv7-a \
+
+CXXFLAGS += \
+          -std=c++11 \
+          -I/usr/include/cairo \
+          -I/usr/include/sigc++-2.0 \
+          -I/usr/lib/arm-linux-gnueabihf/sigc++-2.0/include \
+          -I/usr/include/glib-2.0 \
+          -I/usr/lib/arm-linux-gnueabihf/glib-2.0/include \
+          -I/usr/include/pixman-1 \
+          -I/usr/include/freetype2 \
+          -I/usr/include/libpng12 \
+          -I/usr/include/cairomm-1.0 \
+          -I/usr/lib/cairomm-1.0/include \
 
 LDFLAGS += \
 
 LDLIBS += \
 	-lpthread \
+        -lcairomm-1.0 \
+        -lcairo \
+        -lsigc-2.0 \
 
 export CROSS_COMPILE:=
 
@@ -55,7 +72,7 @@ PASM := $(PASM_DIR)/pasm
 	$(RM) $<.i
 
 %.o: %.cpp
-	$(CXX) $(CXXFLAGS) -std=c++11 `pkg-config --cflags --libs cairomm-1.0` -c -o $@ $<
+	$(CXX) $(CXXFLAGS) -c -o $@ $<
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
@@ -73,7 +90,7 @@ clean:
 	rm -rf \
 		**/*.o \
 		*.o \
-		ws281x.hp.i \
+		PixelBone/ws281x.hp.i \
 		PixelBone/.*.o.d \
 		*~ \
 		$(INCDIR_APP_LOADER)/*~ \
