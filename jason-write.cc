@@ -13,6 +13,9 @@
 #include <unistd.h>
 #include <fcntl.h>
 
+#include "PixelBone/gfx.hpp"
+#include "PixelBone/matrix.hpp"
+
 #ifdef __linux__
 #include <linux/fb.h>
 #else
@@ -208,12 +211,37 @@ void render(Cairo::RefPtr<Cairo::Context> cr, float boost_psi_current, float boo
   // draw_graph(cr, boost_psi_current);
 }
 
+uint32_t led_red = PixelBone_Pixel::Color(211, 0, 153);
+uint32_t led_blue = PixelBone_Pixel::Color(97, 169, 255);
+uint32_t led_green = PixelBone_Pixel::Color(54, 227, 132);
+
+void render_led_ring(PixelBone_Matrix matrix, float boost) {
+  matrix.fillScreen(0);
+  if (boost > 0) {
+    uint32_t color = boost >= BOOST_PSI_MAX ? led_red : led_green;
+    for (int i=0; i<=boost; i++) {
+      matrix.drawPixel(i, 0, color);
+    }
+  } else {
+    for (int i=24; i>=boost+24; i--) {
+      matrix.drawPixel(i, 0, led_blue);
+    }
+  }
+}
+
 int main()
 {
   float boost_psi = 0;
   float boost_psi_max = 0;
   int iat = 70;
   int knock = 0;
+
+  PixelBone_Matrix matrix(24,1,
+    MATRIX_TOP  + MATRIX_LEFT +
+    MATRIX_ROWS + MATRIX_ZIGZAG);
+  // uint32_t red = PixelBone_Pixel::Color(211/12, 0, 153/12);
+  // uint32_t blue = PixelBone_Pixel::Color(97/12, 169/12, 255/12);
+  // uint32_t green = PixelBone_Pixel::Color(54/12, 227/12, 132/12);
 
   // Simulation stuff
   float boost_psi_step = 0.01;
@@ -260,6 +288,7 @@ int main()
 
             struct fb_var_screeninfo vinfo;
             while (1) {
+              render_led_ring(matrix, boost_psi);
               render(context, boost_psi, boost_psi_max, iat, knock);
               memcpy(front_buffer, back_buffer, buflen);
               
