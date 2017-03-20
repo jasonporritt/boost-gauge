@@ -281,30 +281,41 @@ int main()
             Cairo::RefPtr<Cairo::Context> context = setup(surface);
 
             struct fb_var_screeninfo vinfo;
+
+            std::chrono::time_point<std::chrono::steady_clock> last_time = std::chrono::time_point::min();
+            std::chrono::time_point<std::chrono::steady_clock> current_time;
+            double ns_since_last_render = 0;
             while (1) {
-              render_led_ring(boost_psi);
-              render(context, boost_psi, boost_psi_max, iat, knock);
-              memcpy(front_buffer, back_buffer, buflen);
+              current_time = std::chrono::steady_clock::now();
+              ns_since_last_render += std::chrono::duration_cast<std::chrono::nanoseconds>(current_time-last_time).count();
+              last_time = current_time;
 
-              boost_psi += boost_psi_step;
-              if (boost_psi > 21.8 || boost_psi < -32.0)
-                boost_psi_step = boost_psi_step * -1;
+              if (ns_since_last_render >= 333333333) {
+                ns_since_last_render = ns_since_last_render % 333333333;
+                render_led_ring(boost_psi);
+                render(context, boost_psi, boost_psi_max, iat, knock);
+                memcpy(front_buffer, back_buffer, buflen);
 
-              if (loop_counter % iat_count_interval == 0) {
-                iat += iat_step;
-                if (iat > 250 || iat < -20)
-                  iat_step = iat_step * -1;
+                boost_psi += boost_psi_step;
+                if (boost_psi > 21.8 || boost_psi < -32.0)
+                  boost_psi_step = boost_psi_step * -1;
+
+                if (loop_counter % iat_count_interval == 0) {
+                  iat += iat_step;
+                  if (iat > 250 || iat < -20)
+                    iat_step = iat_step * -1;
+                }
+                if (loop_counter % knock_count_interval == 0) {
+                  knock += knock_step;
+                  if (knock > 98 || knock < 1)
+                    knock_step = knock_step * -1;
+                }
+
+                if (boost_psi_max < boost_psi) 
+                  boost_psi_max = boost_psi;
+
+                loop_counter++;
               }
-              if (loop_counter % knock_count_interval == 0) {
-                knock += knock_step;
-                if (knock > 98 || knock < 1)
-                  knock_step = knock_step * -1;
-              }
-
-              if (boost_psi_max < boost_psi) 
-                boost_psi_max = boost_psi;
-
-              loop_counter++;
             }
 
             r = 0;   /* Indicate success */
