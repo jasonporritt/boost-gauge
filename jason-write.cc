@@ -16,10 +16,7 @@
 #include "PixelBone/gfx.hpp"
 #include "PixelBone/matrix.hpp"
 
-#ifdef __linux__
 #include <linux/fb.h>
-#else
-#endif
 
 const float BOOST_PSI_MAX = 21.0;
 const int IAT_HOT_THRESHOLD = 150;
@@ -254,7 +251,6 @@ int main()
   int knock_step = 1;
   int loop_counter = 0;
 
-  #ifdef __linux__
   struct fb_var_screeninfo screen_info;
   struct fb_fix_screeninfo fixed_info;
   unsigned char *front_buffer = NULL;
@@ -263,16 +259,13 @@ int main()
   int fd = -1;
   int r = 1;
 
-  std::cout << "about to open fb0\n" << std::flush;
   fd = open("/dev/fb0", O_RDWR);
   if (fd >= 0)
   {
-    std::cout << "opened fb0\n" << std::flush;
     if (!ioctl(fd, FBIOGET_VSCREENINFO, &screen_info) &&
         !ioctl(fd, FBIOGET_FSCREENINFO, &fixed_info))
     {
         buflen = screen_info.yres_virtual * fixed_info.line_length;
-        std::cout << "got buffer size:" << buflen << "\n" << std::flush;
         front_buffer = (unsigned char *) mmap(NULL,
                       buflen,
                       PROT_READ|PROT_WRITE,
@@ -285,16 +278,13 @@ int main()
         {
             Cairo::RefPtr<Cairo::ImageSurface> surface = Cairo::ImageSurface::create(back_buffer, Cairo::FORMAT_RGB16_565, 128, 128, Cairo::ImageSurface::format_stride_for_width(Cairo::FORMAT_RGB16_565, screen_info.xres_virtual));
 
-            std::cout << "setting up surface... " << std::flush;
             Cairo::RefPtr<Cairo::Context> context = setup(surface);
-            std::cout << "done setting up surface\n" << std::flush;
 
             struct fb_var_screeninfo vinfo;
             while (1) {
               render_led_ring(boost_psi);
               render(context, boost_psi, boost_psi_max, iat, knock);
               memcpy(front_buffer, back_buffer, buflen);
-              
 
               boost_psi += boost_psi_step;
               if (boost_psi > 21.8 || boost_psi < -32.0)
@@ -343,16 +333,4 @@ int main()
     close(fd);
 
   return r;
-#else
-    Cairo::RefPtr<Cairo::ImageSurface> surface = Cairo::ImageSurface::create(Cairo::FORMAT_ARGB32, 128, 128);
-    Cairo::RefPtr<Cairo::Context> context = setup(surface);
-    render(context, -18.2, 9.1, -10, 3);
-
-#ifdef CAIRO_HAS_PNG_FUNCTIONS
-      std::string filename = "image.png";
-      surface->write_to_png(filename);
-
-      std::cout << "Wrote png file \"" << filename << "\"" << std::endl;
-#endif
-#endif
 }
