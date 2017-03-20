@@ -1,0 +1,3 @@
+[submodule "PixelBone"]
+	path = PixelBone
+	url = git@github.com:toroidal-code/PixelBone.git
