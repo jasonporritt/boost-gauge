@@ -1,6 +1,7 @@
 #include <string>
 #include <cstring>
 #include <stdio.h>
+#include <chrono>
 #include <iostream>
 #include <cairommconfig.h>
 #include <cairomm/context.h>
@@ -211,9 +212,9 @@ void render(Cairo::RefPtr<Cairo::Context> cr, float boost_psi_current, float boo
 // uint32_t led_red = PixelBone_Pixel::Color(211/12, 0, 153/12);
 // uint32_t led_blue = PixelBone_Pixel::Color(97/12, 169/12, 255/12);
 // uint32_t led_green = PixelBone_Pixel::Color(54/12, 227/12, 132/12);
-uint32_t led_red = PixelBone_Pixel::Color(211, 0, 153);
-uint32_t led_blue = PixelBone_Pixel::Color(97, 169, 255);
-uint32_t led_green = PixelBone_Pixel::Color(54, 227, 132);
+uint32_t led_red = PixelBone_Pixel::Color(211, 0, 153/2);
+uint32_t led_blue = PixelBone_Pixel::Color(97/4, 169/4, 255);
+uint32_t led_green = PixelBone_Pixel::Color(54/4, 227, 132/4);
 
 PixelBone_Matrix matrix(24,1,
   MATRIX_TOP  + MATRIX_LEFT +
@@ -233,7 +234,6 @@ void render_led_ring(float boost) {
     }
   }
   matrix.show();
-  usleep(1000);
 }
 
 int main()
@@ -282,40 +282,41 @@ int main()
 
             struct fb_var_screeninfo vinfo;
 
-            std::chrono::time_point<std::chrono::steady_clock> last_time = std::chrono::time_point::min();
-            std::chrono::time_point<std::chrono::steady_clock> current_time;
+            auto last_time = std::chrono::steady_clock::now();
+            auto current_time = std::chrono::steady_clock::now();
             double ns_since_last_render = 0;
             while (1) {
               current_time = std::chrono::steady_clock::now();
-              ns_since_last_render += std::chrono::duration_cast<std::chrono::nanoseconds>(current_time-last_time).count();
+              ns_since_last_render += std::chrono::duration_cast<std::chrono::nanoseconds>(current_time - last_time).count();
               last_time = current_time;
 
-              if (ns_since_last_render >= 333333333) {
-                ns_since_last_render = ns_since_last_render % 333333333;
+              if (ns_since_last_render >= 33333333) {
+                ns_since_last_render = ((int)ns_since_last_render) % 33333333;
                 render_led_ring(boost_psi);
                 render(context, boost_psi, boost_psi_max, iat, knock);
                 memcpy(front_buffer, back_buffer, buflen);
-
-                boost_psi += boost_psi_step;
-                if (boost_psi > 21.8 || boost_psi < -32.0)
-                  boost_psi_step = boost_psi_step * -1;
-
-                if (loop_counter % iat_count_interval == 0) {
-                  iat += iat_step;
-                  if (iat > 250 || iat < -20)
-                    iat_step = iat_step * -1;
-                }
-                if (loop_counter % knock_count_interval == 0) {
-                  knock += knock_step;
-                  if (knock > 98 || knock < 1)
-                    knock_step = knock_step * -1;
-                }
-
-                if (boost_psi_max < boost_psi) 
-                  boost_psi_max = boost_psi;
-
-                loop_counter++;
               }
+
+              boost_psi += boost_psi_step;
+              if (boost_psi > 21.8 || boost_psi < -32.0)
+                boost_psi_step = boost_psi_step * -1;
+
+              if (loop_counter % iat_count_interval == 0) {
+                iat += iat_step;
+                if (iat > 250 || iat < -20)
+                  iat_step = iat_step * -1;
+              }
+              if (loop_counter % knock_count_interval == 0) {
+                knock += knock_step;
+                if (knock > 98 || knock < 1)
+                  knock_step = knock_step * -1;
+              }
+
+              if (boost_psi_max < boost_psi) 
+                boost_psi_max = boost_psi;
+
+              usleep(100);
+              loop_counter++;
             }
 
             r = 0;   /* Indicate success */
