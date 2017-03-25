@@ -1,0 +1,3 @@
+[submodule "PixelBone"]
+	path = PixelBone
+	url = git@github.com:jasonporritt/PixelBone.git
