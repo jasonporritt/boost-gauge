@@ -175,24 +175,46 @@ void draw_numbers(Cairo::RefPtr<Cairo::Context> cr, float boost_psi_current, flo
   cr->restore();
 }
 
+float *boosts = new float[127];
+int boosts_current_index = -1;
+const int GRAPH_BOOST_HEIGHT = 25;
+const int GRAPH_VACUUM_HEIGHT = 25;
+const int GRAPH_V_CENTER = 73;
+const float GRAPH_BOOST_FACTOR = (25.0 / 22.0);
+const float GRAPH_VACUUM_FACTOR = (25.0 / 35.0);
+float corrected_graph_pressure = 0;
 void draw_graph(Cairo::RefPtr<Cairo::Context> cr, float boost_psi_current) {
-  cr->save();
+  boosts_current_index = (boosts_current_index + 1) % 128;
+  boosts[boosts_current_index] = boost_psi_current;
 
-  for (int i = 0; i < 128; i = i+1) {
-    if (i % 51 <= 25) {
+  cr->save();
+  cr->set_antialias(Cairo::Antialias::ANTIALIAS_NONE);
+  cr->set_line_width(1.0);
+
+  cr->set_source(black_color);
+  cr->rectangle(0, GRAPH_V_CENTER - GRAPH_VACUUM_HEIGHT, 128, GRAPH_BOOST_HEIGHT + GRAPH_VACUUM_HEIGHT);
+  cr->fill();
+
+  for (int i=0; i<128; i++) {
+    int corrected_index = (i + boosts_current_index) % 128;
+    if (boosts[corrected_index] <= 0) {
       cr->set_source(blue_color);
+      corrected_graph_pressure = boosts[corrected_index] * GRAPH_VACUUM_FACTOR;
+    } else if (boosts[corrected_index] >= BOOST_PSI_MAX) {
+      cr->set_source(red_color);
+      corrected_graph_pressure = boosts[corrected_index] * GRAPH_BOOST_FACTOR;
     } else {
       cr->set_source(green_color);
+      corrected_graph_pressure = boosts[corrected_index] * GRAPH_BOOST_FACTOR;
     }
     cr->move_to(i, 72);
-    cr->line_to(i, 72 + 25 - (i % 51));
+    cr->line_to(i, 72 - (int) corrected_graph_pressure);
     cr->stroke();
   }
+
   cr->set_source(white_color);
   cr->move_to(0, 73);
   cr->line_to(128, 73);
-  cr->set_line_width(1.0);
-  cr->set_antialias(Cairo::Antialias::ANTIALIAS_NONE);
   cr->stroke();
   cr->restore();
 }
@@ -204,17 +226,16 @@ Cairo::RefPtr<Cairo::Context> setup(Cairo::RefPtr<Cairo::Surface> surface) {
 }
 void render(Cairo::RefPtr<Cairo::Context> cr, float boost_psi_current, float boost_psi_max, int iat, int knock) {
   cr->save(); // save the state of the context
-  // draw_gauge_background(cr);
   draw_numbers(cr, boost_psi_current, boost_psi_max, iat, knock);
-  // draw_graph(cr, boost_psi_current);
+  draw_graph(cr, boost_psi_current);
 }
 
-// uint32_t led_red = PixelBone_Pixel::Color(211/12, 0, 153/12);
-// uint32_t led_blue = PixelBone_Pixel::Color(97/12, 169/12, 255/12);
-// uint32_t led_green = PixelBone_Pixel::Color(54/12, 227/12, 132/12);
-uint32_t led_red = PixelBone_Pixel::Color(211, 0, 153/2);
-uint32_t led_blue = PixelBone_Pixel::Color(97/4, 169/4, 255);
-uint32_t led_green = PixelBone_Pixel::Color(54/4, 227, 132/4);
+uint32_t led_red = PixelBone_Pixel::Color(211/12, 0, 153/24);
+uint32_t led_blue = PixelBone_Pixel::Color(97/24, 169/24, 255/12);
+uint32_t led_green = PixelBone_Pixel::Color(54/24, 227/12, 132/24);
+// uint32_t led_red = PixelBone_Pixel::Color(211, 0, 153/2);
+// uint32_t led_blue = PixelBone_Pixel::Color(97/4, 169/4, 255);
+// uint32_t led_green = PixelBone_Pixel::Color(54/4, 227, 132/4);
 
 PixelBone_Matrix matrix(24,1,
   MATRIX_TOP  + MATRIX_LEFT +
