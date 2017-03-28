@@ -31,8 +31,11 @@ int main()
 
   unsigned char ecu_init_cmd = {ECU_INIT_DATA};
 
-  addr.can_addr.tp.tx_id = TESTER_CAN_ID;
-  addr.can_addr.tp.rx_id = ECU_CAN_ID;
+  addr.can_addr.tp.tx_id = ECU_CAN_ID;
+  addr.can_addr.tp.tx_id |= CAN_EFF_FLAG;
+
+  addr.can_addr.tp.rx_id = TESTER_CAN_ID;
+  addr.can_addr.tp.xx_id |= CAN_EFF_FLAG;
 
   if ((s = socket(PF_CAN, SOCK_DGRAM, CAN_ISOTP)) < 0) {
     perror("socket");
@@ -62,5 +65,7 @@ int main()
     for (i=0; i < nbytes; i++)
       printf("%02X ", msg[i]);
   printf("\n");
+
+  close(s);
 
 }
