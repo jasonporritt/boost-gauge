@@ -16,12 +16,19 @@
 #define TCU_CAN_ID 0x000007E9U
 #define TESTER_CAN_ID 0x000007E0U
 
+#define MANIFOLD_RELATIVE_PRESSURE_DIRECT_ADDRESS 0xFF63B0
+
+
 #define SSM_ECU_INIT_REQUEST 0xAAU
 #define SSM_READ_ADDRESS_REQUEST 0xA8U
 
 #define BUFSIZE 5000 /* size > 4095 to check socket API internal checks */
 
 #define INTERFACE "vcan0"
+
+float format_boost_psi(int boost_reading) {
+    return boost_reading * 0.01933677;
+}
 
 int main(int argc, char **argv)
 {
@@ -76,6 +83,25 @@ int main(int argc, char **argv)
 	    for (i=0; i < nbytes; i++)
 		    printf("%02X ", response_buffer[i]);
     printf("\n");
+
+    request_buffer[0] = SSM_READ_ADDRESS_REQUEST;
+    request_buffer[1] = 0x00U;
+    request_buffer[2] = 0xFFU;
+    request_buffer[3] = 0x63U;
+    request_buffer[4] = 0xB0U;
+    buflen = 5;
+
+    // retval = write(s, request_buffer, buflen);
+    // if (retval < 0) {
+    // 	    perror("write");
+    //      return retval;
+    // }
+
+    // nbytes = read(s, response_buffer, BUFSIZE);
+    // if (nbytes > 0 && nbytes < BUFSIZE)
+    //     for (i=0; i < nbytes; i++)
+    //         printf("%02X ", response_buffer[i]);
+    // printf("\n");
 
     /* 
      * due to a Kernel internal wait queue the PDU is sent completely
