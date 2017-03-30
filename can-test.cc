@@ -12,55 +12,76 @@
 #include <linux/can.h>
 #include <linux/can/isotp.h>
 
-#define BUFSIZE 5000
-#define ECU_CAN_ID 0x000007E8
-#define TCU_CAN_ID 0x000007E9
-#define TESTER_CAN_ID 0x000007E0
+#define ECU_CAN_ID 0x000007E8U
+#define TCU_CAN_ID 0x000007E9U
+#define TESTER_CAN_ID 0x000007E0U
 
-#define ECU_INIT_DATA = 0xAA
+#define SSM_ECU_INIT_REQUEST 0xAAU
+#define SSM_READ_ADDRESS_REQUEST 0xA8U
 
-int main()
+#define BUFSIZE 5000 /* size > 4095 to check socket API internal checks */
+
+#define INTERFACE "vcan0"
+
+int main(int argc, char **argv)
 {
-  struct sockaddr_can addr;
-  static struct can_isotp_options opts;
-  // static struct can_isotp_fc_options fcopts;
+    int s;
+    struct sockaddr_can addr;
+    static struct can_isotp_options opts;
+    unsigned char request_buffer[BUFSIZE];
+    unsigned char response_buffer[BUFSIZE];
+    int buflen = 0;
+    int nbytes, i;
+    int retval = 0;
 
-  int s;
-  unsigned char msg[BUFSIZE];
-  int numbytes;
+    addr.can_addr.tp.tx_id = 0x000007E0U;
+    addr.can_addr.tp.tx_id |= CAN_EFF_FLAG;
+    addr.can_addr.tp.rx_id = 0x000007E8U;
+    addr.can_addr.tp.rx_id |= CAN_EFF_FLAG;
 
-  unsigned char ecu_init_cmd = {ECU_INIT_DATA};
+    opts.txpad_content = 0x00;
+    opts.rxpad_content = 0x00;
+    opts.flags |= (CAN_ISOTP_TX_PADDING | CAN_ISOTP_RX_PADDING);
 
-  addr.can_addr.tp.tx_id = TESTER_CAN_ID;
-  addr.can_addr.tp.rx_id = ECU_CAN_ID;
+    if ((s = socket(PF_CAN, SOCK_DGRAM, CAN_ISOTP)) < 0) {
+	perror("socket");
+	exit(1);
+    }
 
-  if ((s = socket(PF_CAN, SOCK_DGRAM, CAN_ISOTP)) < 0) {
-    perror("socket");
-    exit(1);
-  }
+    setsockopt(s, SOL_CAN_ISOTP, CAN_ISOTP_OPTS, &opts, sizeof(opts));
 
-  opts.flags |= (CAN_ISOTP_TX_PADDING | CAN_ISOTP_RX_PADDING);
-  setsockopt(s, SOL_CAN_ISOTP, CAN_ISOTP_OPTS, &opts, sizeof(opts));
+    addr.can_family = AF_CAN;
+    addr.can_ifindex = if_nametoindex(INTERFACE);
 
-  addr.can_family = AF_CAN;
-  addr.can_ifindex = if_nametoindex("can0");
+    if (bind(s, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+	perror("bind");
+	close(s);
+	exit(1);
+    }
 
-  if (bind(s, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
-    perror("bind");
+    request_buffer[0] = SSM_ECU_INIT_REQUEST;
+    buflen = 1;
+
+    retval = write(s, request_buffer, buflen);
+    if (retval < 0) {
+	    perror("write");
+	    return retval;
+    }
+
+    if (retval != buflen)
+	    fprintf(stderr, "wrote only %d from %d byte\n", retval, buflen);
+
+    nbytes = read(s, response_buffer, BUFSIZE);
+    if (nbytes > 0 && nbytes < BUFSIZE)
+	    for (i=0; i < nbytes; i++)
+		    printf("%02X ", response_buffer[i]);
+    printf("\n");
+
+    /* 
+     * due to a Kernel internal wait queue the PDU is sent completely
+     * before close() returns.
+     */
     close(s);
-    exit(1);
-  }
 
-  retval = write(s, ecu_init_cmd, 1);
-  if (retval < 0) {
-    perror("write");
-    return retval;
-  }
-
-  nbytes = read(s, msg, BUFSIZE);
-  if (nbytes > 0 && nbytes < BUFSIZE)
-    for (i=0; i < nbytes; i++)
-      printf("%02X ", msg[i]);
-  printf("\n");
-
+    return 0;
 }

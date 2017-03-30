@@ -2,7 +2,7 @@
 #
 # The top level targets link in the two .o files for now.
 #
-TARGETS += jason-write
+TARGETS += jason-write can-test
 
 PIXELBONE_OBJS = PixelBone/pixel.o PixelBone/gfx.o PixelBone/matrix.o PixelBone/pru.o PixelBone/util.o
 PIXELBONE_LIB := PixelBone/libpixelbone.a
@@ -17,6 +17,7 @@ CFLAGS += \
 	-Wp,-MMD,$(dir $@).$(notdir $@).d \
 	-Wp,-MT,$@ \
 	-I. \
+	-Iinclude \
 	-IPixelBone \
 	-O2 \
 	-mtune=cortex-a8 \
@@ -34,6 +35,7 @@ CXXFLAGS += \
           -I/usr/include/libpng12 \
           -I/usr/include/cairomm-1.0 \
           -I/usr/lib/cairomm-1.0/include \
+	  -Iinclude \
 
 LDFLAGS += \
 
