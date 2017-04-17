@@ -24,7 +24,7 @@
 
 #define BUFSIZE 5000 /* size > 4095 to check socket API internal checks */
 
-#define INTERFACE "vcan0"
+#define INTERFACE "can0"
 
 float format_boost_psi(int boost_reading) {
     return boost_reading * 0.01933677;
@@ -41,9 +41,9 @@ int main(int argc, char **argv)
     int nbytes, i;
     int retval = 0;
 
-    addr.can_addr.tp.tx_id = 0x000007E0U;
+    addr.can_addr.tp.tx_id = 0x000007E8U;
     addr.can_addr.tp.tx_id |= CAN_EFF_FLAG;
-    addr.can_addr.tp.rx_id = 0x000007E8U;
+    addr.can_addr.tp.rx_id = 0x000007E0U;
     addr.can_addr.tp.rx_id |= CAN_EFF_FLAG;
 
     opts.txpad_content = 0x00;
