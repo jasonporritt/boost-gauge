@@ -14,15 +14,16 @@
 
 #define BUFSIZE 5000
 #define ECU_CAN_ID 0x000007E8
+#define ECU_TESTER_CAN_ID 0x000007E0
 #define TCU_CAN_ID 0x000007E9
-#define TESTER_CAN_ID 0x000007E0
+#define TCU_TESTER_CAN_ID 0x000007E1
 
 #define ECU_INIT_DATA = 0xAA
 
 int main()
 {
   struct sockaddr_can addr;
-  static struct can_isotp_options opts;
+  struct can_isotp_options opts;
   // static struct can_isotp_fc_options fcopts;
 
   int s;
@@ -43,6 +44,7 @@ int main()
   }
 
   opts.flags |= (CAN_ISOTP_TX_PADDING | CAN_ISOTP_RX_PADDING);
+  opts.flags |= (CAN_ISOTP_EXTEND_ADDR | CAN_ISOTP_RX_EXT_ADDR);
   setsockopt(s, SOL_CAN_ISOTP, CAN_ISOTP_OPTS, &opts, sizeof(opts));
 
   addr.can_family = AF_CAN;
@@ -67,5 +69,5 @@ int main()
   printf("\n");
 
   close(s);
-
+  return 0;
 }
