@@ -230,9 +230,12 @@ void render(Cairo::RefPtr<Cairo::Context> cr, float boost_psi_current, float boo
   draw_graph(cr, boost_psi_current);
 }
 
-uint32_t led_red = PixelBone_Pixel::Color(211/12, 0, 153/24);
-uint32_t led_blue = PixelBone_Pixel::Color(97/24, 169/24, 255/12);
-uint32_t led_green = PixelBone_Pixel::Color(54/24, 227/12, 132/24);
+uint32_t led_red = PixelBone_Pixel::Color(211/5, 0, 153/10);
+uint32_t led_dim_red = PixelBone_Pixel::Color(211/20, 0, 153/40);
+uint32_t led_blue = PixelBone_Pixel::Color(0, 169/10, 255/5);
+uint32_t led_dim_blue = PixelBone_Pixel::Color(0, 169/40, 255/20);
+uint32_t led_green = PixelBone_Pixel::Color(54/10, 227/5, 132/10);
+uint32_t led_dim_green = PixelBone_Pixel::Color(54/40, 227/20, 132/40);
 // uint32_t led_red = PixelBone_Pixel::Color(211, 0, 153/2);
 // uint32_t led_blue = PixelBone_Pixel::Color(97/4, 169/4, 255);
 // uint32_t led_green = PixelBone_Pixel::Color(54/4, 227, 132/4);
@@ -244,14 +247,22 @@ PixelBone_Matrix matrix(24,1,
 void render_led_ring(float boost) {
   matrix.fillScreen(0);
   uint32_t color = boost >= BOOST_PSI_MAX ? led_red : led_green;
+  uint32_t dim_color = boost >= BOOST_PSI_MAX ? led_dim_red : led_dim_green;
   if (boost > 0) {
-    uint32_t color = boost >= BOOST_PSI_MAX ? led_red : led_green;
-    for (int i=0; i<=boost; i++) {
-      matrix.drawPixel(i, 0, color);
+    for (int i=0; i<=boost+1; i++) {
+      if (i-boost > 0 && i-boost < 0.5) {
+      	matrix.drawPixel((i+10) % 24, 0, dim_color);
+      }
+      else if (i-boost > 0) {
+        // nothing
+      }
+      else {
+        matrix.drawPixel((i+10) % 24, 0, color);
+      }
     }
   } else {
-    for (int i=24; i>=boost+24; i--) {
-      matrix.drawPixel(i, 0, led_blue);
+    for (int i=23+10; i>=boost+23+10; i--) {
+      matrix.drawPixel(i % 24, 0, led_blue);
     }
   }
   matrix.show();
@@ -265,7 +276,7 @@ int main()
   int knock = 0;
 
   // Simulation stuff
-  float boost_psi_step = 0.01;
+  float boost_psi_step = 0.001;
   int iat_count_interval = 25;
   int iat_step = 1;
   int knock_count_interval = 100;
