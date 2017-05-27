@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <chrono>
 #include <iostream>
+#include <thread>
 #include <cairommconfig.h>
 #include <cairomm/context.h>
 #include <cairomm/surface.h>
@@ -29,7 +30,7 @@ struct boost_readings_t {
   float boost_psi_max;
   int iat;
   int knock;
-}
+};
 
 class Display
 {
@@ -76,8 +77,8 @@ class Display
   int fd = -1;
   Cairo::RefPtr<Cairo::ImageSurface> cairo_surface;
   Cairo::RefPtr<Cairo::Context> cairo_context;
-  thread renderThread;
-  boost_readings_t * active_boost_readings;
+  thread render_thread;
+  boost_readings_t *active_boost_readings;
 
   Display(boost_readings_t &boost_readings) {
     active_boost_readings = boost_readings;
@@ -118,7 +119,7 @@ class Display
   }
 
   void start() {
-    renderThread = thread([&]() {
+    render_thread = thread([&]() {
       while(running) {
         this->render_lcd();
         this->render_led_ring();
