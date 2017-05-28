@@ -36,6 +36,7 @@ CXXFLAGS += \
           -I/usr/include/cairomm-1.0 \
           -I/usr/lib/cairomm-1.0/include \
 	  -Iinclude \
+	  -O3 \
 
 LDFLAGS += \
 

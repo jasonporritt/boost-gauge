@@ -7,7 +7,6 @@
 #include <cairommconfig.h>
 #include <cairomm/context.h>
 #include <cairomm/surface.h>
-#include <cairomm/quartz_surface.h>
 
 #include <sys/types.h>
 #include <sys/ioctl.h>
@@ -17,6 +16,8 @@
 
 #include "PixelBone/gfx.hpp"
 #include "PixelBone/matrix.hpp"
+
+#include "fastmemcpy.h"
 
 #include <linux/fb.h>
 
@@ -32,7 +33,63 @@ struct boost_readings_t {
   int knock;
 };
 
-class Display
+class LedRingDisplay {
+  boost_readings_t *active_boost_readings;
+  std::thread render_thread;
+
+public:
+  LedRingDisplay(boost_readings_t &boost_readings) {
+    active_boost_readings = &boost_readings;
+  }
+
+  void initialize() {
+  }
+
+  void start() {
+    render_thread = std::thread([&]() {
+      while(1) {
+        this->render_led_ring();
+        std::this_thread::sleep_for(std::chrono::milliseconds(40));
+      }
+    });
+  }
+
+  void cleanup() {
+  }
+
+private:
+
+  uint32_t led_red = PixelBone_Pixel::Color(211/12, 0, 153/24);
+  uint32_t led_blue = PixelBone_Pixel::Color(97/24, 169/24, 255/12);
+  uint32_t led_green = PixelBone_Pixel::Color(54/24, 227/12, 132/24);
+  // uint32_t led_red = PixelBone_Pixel::Color(211, 0, 153/2);
+  // uint32_t led_blue = PixelBone_Pixel::Color(97/4, 169/4, 255);
+  // uint32_t led_green = PixelBone_Pixel::Color(54/4, 227, 132/4);
+
+  PixelBone_Matrix matrix = PixelBone_Matrix(24, 1, MATRIX_TOP + MATRIX_LEFT + MATRIX_ROWS + MATRIX_ZIGZAG);
+
+  void render_led_ring() {
+    //TODO Use reference as it lies. Cheating to make refactor faster.
+    float boost = active_boost_readings->boost_psi_current;
+    matrix.fillScreen(0);
+
+    uint32_t color = active_boost_readings->boost_psi_current >= BOOST_PSI_MAX ? led_red : led_green;
+    if (active_boost_readings->boost_psi_current > 0) {
+      uint32_t color = active_boost_readings->boost_psi_current >= BOOST_PSI_MAX ? led_red : led_green;
+      for (int i=0; i<=active_boost_readings->boost_psi_current; i++) {
+        matrix.drawPixel(i, 0, color);
+      }
+    } else {
+      for (int i=24; i>=active_boost_readings->boost_psi_current+24; i--) {
+        matrix.drawPixel(i, 0, led_blue);
+      }
+    }
+    matrix.show();
+  }
+
+};
+
+class LcdDisplay
 {
   const std::string BOOST_LABEL = "BOOST (PSI)";
   const std::string IAT_LABEL = "IAT";
@@ -81,7 +138,7 @@ class Display
   boost_readings_t *active_boost_readings;
 
 public:
-  Display(boost_readings_t &boost_readings) {
+  LcdDisplay(boost_readings_t &boost_readings) {
     active_boost_readings = &boost_readings;
   }
 
@@ -123,9 +180,13 @@ public:
     this->draw_gauge_background();
     render_thread = std::thread([&]() {
       while(1) {
+        std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
         this->render_lcd();
-        this->render_led_ring();
-        std::this_thread::sleep_for(std::chrono::milliseconds(33));
+        std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> time_span = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
+        std::cout << "It took me " << time_span.count() << " seconds.\n";
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(40));
       }
     });
   }
@@ -167,7 +228,6 @@ private:
 
   void draw_numbers() {
     //TODO Use the references as they are. Cheating so simplify refactor.
-    float boost_psi_current = active_boost_readings->boost_psi_current;
     float boost_psi_max = active_boost_readings->boost_psi_max;
     int iat = active_boost_readings->iat;
     int knock = active_boost_readings->knock;
@@ -177,16 +237,16 @@ private:
     cairo_context->set_font_face(number_font);
 
     // Boost
-    snprintf(boost_psi_current_formatted, 7, "% 3.1f", boost_psi_current);
+    snprintf(boost_psi_current_formatted, 7, "% 3.1f", active_boost_readings->boost_psi_current);
     if (std::strcmp(boost_psi_current_formatted, last_boost_psi_current_formatted) != 0) {
       strncpy(last_boost_psi_current_formatted, boost_psi_current_formatted, 7);
       cairo_context->set_source(black_color);
       cairo_context->rectangle(0, 14, 128, 32);
       cairo_context->fill();
 
-      if (boost_psi_current < 0)
+      if (active_boost_readings->boost_psi_current < 0)
         cairo_context->set_source(blue_color);
-      else if (boost_psi_current < BOOST_PSI_MAX)
+      else if (active_boost_readings->boost_psi_current < BOOST_PSI_MAX)
         cairo_context->set_source(green_color);
       else
         cairo_context->set_source(red_color);
@@ -264,11 +324,8 @@ private:
   float corrected_graph_pressure = 0;
 
   void draw_graph() {
-    //TODO Use the references as they are. Cheating so simplify refactor.
-    float boost_psi_current = active_boost_readings->boost_psi_current;
-
     boosts_current_index = (boosts_current_index + 1) % 128;
-    boosts[boosts_current_index] = boost_psi_current;
+    boosts[boosts_current_index] = active_boost_readings->boost_psi_current;
 
     cairo_context->save();
     cairo_context->set_antialias(Cairo::Antialias::ANTIALIAS_NONE);
@@ -308,34 +365,6 @@ private:
     memcpy(front_buffer, back_buffer, buflen);
   }
 
-  uint32_t led_red = PixelBone_Pixel::Color(211/12, 0, 153/24);
-  uint32_t led_blue = PixelBone_Pixel::Color(97/24, 169/24, 255/12);
-  uint32_t led_green = PixelBone_Pixel::Color(54/24, 227/12, 132/24);
-  // uint32_t led_red = PixelBone_Pixel::Color(211, 0, 153/2);
-  // uint32_t led_blue = PixelBone_Pixel::Color(97/4, 169/4, 255);
-  // uint32_t led_green = PixelBone_Pixel::Color(54/4, 227, 132/4);
-
-  PixelBone_Matrix matrix = PixelBone_Matrix(24, 1, MATRIX_TOP + MATRIX_LEFT + MATRIX_ROWS + MATRIX_ZIGZAG);
-
-  void render_led_ring() {
-    //TODO Use reference as it lies. Cheating to make refactor faster.
-    float boost = active_boost_readings->boost_psi_current;
-    matrix.fillScreen(0);
-
-    uint32_t color = boost >= BOOST_PSI_MAX ? led_red : led_green;
-    if (boost > 0) {
-      uint32_t color = boost >= BOOST_PSI_MAX ? led_red : led_green;
-      for (int i=0; i<=boost; i++) {
-        matrix.drawPixel(i, 0, color);
-      }
-    } else {
-      for (int i=24; i>=boost+24; i--) {
-        matrix.drawPixel(i, 0, led_blue);
-      }
-    }
-    matrix.show();
-  }
-
 };
 
 int main()
@@ -352,9 +381,13 @@ int main()
   int loop_counter = 0;
 
   // Display Setup
-  Display display(readings);
-  display.initialize();
-  display.start();
+  LcdDisplay lcd_display(readings);
+  lcd_display.initialize();
+  lcd_display.start();
+
+  LedRingDisplay led_ring_display(readings);
+  led_ring_display.initialize();
+  led_ring_display.start();
 
   // Simulation Loop
   while (1) {
@@ -380,7 +413,8 @@ int main()
     loop_counter++;
   }
 
-  display.cleanup();
+  lcd_display.cleanup();
+  led_ring_display.cleanup();
 
   return 0;
 }
