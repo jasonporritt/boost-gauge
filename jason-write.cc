@@ -77,11 +77,12 @@ class Display
   int fd = -1;
   Cairo::RefPtr<Cairo::ImageSurface> cairo_surface;
   Cairo::RefPtr<Cairo::Context> cairo_context;
-  thread render_thread;
+  std::thread render_thread;
   boost_readings_t *active_boost_readings;
 
+public:
   Display(boost_readings_t &boost_readings) {
-    active_boost_readings = boost_readings;
+    active_boost_readings = &boost_readings;
   }
 
   void initialize() {
@@ -119,14 +120,17 @@ class Display
   }
 
   void start() {
-    render_thread = thread([&]() {
-      while(running) {
+    this->draw_gauge_background();
+    render_thread = std::thread([&]() {
+      while(1) {
         this->render_lcd();
         this->render_led_ring();
-        this_thread::sleep_for(chrono::milliseconds(33));
+        std::this_thread::sleep_for(std::chrono::milliseconds(33));
       }
     });
   }
+
+private:
 
   void draw_gauge_background() {
     cairo_context->save();
@@ -311,15 +315,13 @@ class Display
   // uint32_t led_blue = PixelBone_Pixel::Color(97/4, 169/4, 255);
   // uint32_t led_green = PixelBone_Pixel::Color(54/4, 227, 132/4);
 
-  PixelBone_Matrix matrix(24,1,
-    MATRIX_TOP  + MATRIX_LEFT +
-    MATRIX_ROWS + MATRIX_ZIGZAG);
+  PixelBone_Matrix matrix = PixelBone_Matrix(24, 1, MATRIX_TOP + MATRIX_LEFT + MATRIX_ROWS + MATRIX_ZIGZAG);
 
   void render_led_ring() {
     //TODO Use reference as it lies. Cheating to make refactor faster.
     float boost = active_boost_readings->boost_psi_current;
-
     matrix.fillScreen(0);
+
     uint32_t color = boost >= BOOST_PSI_MAX ? led_red : led_green;
     if (boost > 0) {
       uint32_t color = boost >= BOOST_PSI_MAX ? led_red : led_green;
@@ -334,7 +336,7 @@ class Display
     matrix.show();
   }
 
-}
+};
 
 int main()
 {
@@ -371,10 +373,10 @@ int main()
         knock_step = knock_step * -1;
     }
 
-    if (readings.boost_psi_max < readings.boost_psi) 
-      readings.boost_psi_max = readings.boost_psi;
+    if (readings.boost_psi_max < readings.boost_psi_current) 
+      readings.boost_psi_max = readings.boost_psi_current;
 
-    usleep(100);
+    usleep(1000);
     loop_counter++;
   }
 
