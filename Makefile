@@ -2,6 +2,7 @@
 #
 # The top level targets link in the two .o files for now.
 #
+CXX=g++-4.9
 TARGETS += jason-write can-test
 
 PIXELBONE_OBJS = PixelBone/pixel.o PixelBone/gfx.o PixelBone/matrix.o PixelBone/pru.o PixelBone/util.o

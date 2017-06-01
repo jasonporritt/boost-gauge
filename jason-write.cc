@@ -22,6 +22,7 @@
 #include <linux/fb.h>
 
 const float BOOST_PSI_MAX = 21.0;
+const float VACUUM_PSI_MAX = 30.0;
 const int IAT_HOT_THRESHOLD = 150;
 const int IAT_COLD_THRESHOLD = 32;
 const int KNOCK_PROBLEM_THRESHOLD = 5;
@@ -62,9 +63,6 @@ private:
   uint32_t led_red = PixelBone_Pixel::Color(211/12, 0, 153/24);
   uint32_t led_blue = PixelBone_Pixel::Color(97/24, 169/24, 255/12);
   uint32_t led_green = PixelBone_Pixel::Color(54/24, 227/12, 132/24);
-  // uint32_t led_red = PixelBone_Pixel::Color(211, 0, 153/2);
-  // uint32_t led_blue = PixelBone_Pixel::Color(97/4, 169/4, 255);
-  // uint32_t led_green = PixelBone_Pixel::Color(54/4, 227, 132/4);
 
   PixelBone_Matrix matrix = PixelBone_Matrix(24, 1, MATRIX_TOP + MATRIX_LEFT + MATRIX_ROWS + MATRIX_ZIGZAG);
 
@@ -75,13 +73,14 @@ private:
 
     uint32_t color = active_boost_readings->boost_psi_current >= BOOST_PSI_MAX ? led_red : led_green;
     if (active_boost_readings->boost_psi_current > 0) {
-      uint32_t color = active_boost_readings->boost_psi_current >= BOOST_PSI_MAX ? led_red : led_green;
-      for (int i=0; i<=active_boost_readings->boost_psi_current; i++) {
-        matrix.drawPixel(i, 0, color);
+      int pixels_lit = 24 * (active_boost_readings->boost_psi_current / (BOOST_PSI_MAX * 1.0));
+      for (int i=10; i<=pixels_lit+10; i++) {
+        matrix.drawPixel(i%24, 0, color);
       }
     } else {
-      for (int i=24; i>=active_boost_readings->boost_psi_current+24; i--) {
-        matrix.drawPixel(i, 0, led_blue);
+      float pixels_lit = 24 * (active_boost_readings->boost_psi_current / (VACUUM_PSI_MAX * 1.0));
+      for (int i=24+9; i>=pixels_lit+24+9; i--) {
+        matrix.drawPixel(i%24, 0, led_blue);
       }
     }
     matrix.show();
@@ -99,6 +98,7 @@ class LcdDisplay
   const int IAT_X_CENTER = 16;
   const int PMAX_X_CENTER = 64;
   const int KNOCK_X_CENTER = 115;
+  const int FRAMERATE = 20;
 
   char boost_psi_current_formatted [7];
   char boost_psi_max_formatted [6];
@@ -156,6 +156,7 @@ public:
     }
 
     buflen = screen_info.yres_virtual * fixed_info.line_length;
+    std::cout << "Buflen is " << buflen << "\n";
     front_buffer = (unsigned char *) mmap(NULL, buflen, PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
     back_buffer = new unsigned char[buflen];
 
@@ -179,14 +180,21 @@ public:
   void start() {
     this->draw_gauge_background();
     render_thread = std::thread([&]() {
+      auto t1 = std::chrono::high_resolution_clock::now();
+      auto t2 = std::chrono::high_resolution_clock::now();
+      auto t3 = std::chrono::high_resolution_clock::now();
       while(1) {
-        std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
+        t1 = std::chrono::high_resolution_clock::now();
         this->render_lcd();
-        std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
-        std::chrono::duration<double> time_span = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
-        std::cout << "It took me " << time_span.count() << " seconds.\n";
+        t2 = std::chrono::high_resolution_clock::now();
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(40));
+        auto render_time_span = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1);
+        int to_sleep = (1000/FRAMERATE) - render_time_span.count();
+        if (to_sleep > 0)
+          std::this_thread::sleep_for(std::chrono::milliseconds(to_sleep));
+        t3 = std::chrono::high_resolution_clock::now();
+        auto time_span = std::chrono::duration_cast<std::chrono::milliseconds>(t3 - t1);
+        // std::cout << "It took me " << time_span.count() << " milliseconds, " << render_time_span.count() << " to render.\n";
       }
     });
   }
@@ -194,7 +202,6 @@ public:
 private:
 
   void draw_gauge_background() {
-    cairo_context->save();
     cairo_context->paint();
 
     // Draw labels
@@ -221,8 +228,6 @@ private:
     cairo_context->get_text_extents(KNOCK_LABEL, extents);
     cairo_context->move_to(KNOCK_X_CENTER-(extents.width/2 + extents.x_bearing), 110);
     cairo_context->show_text(KNOCK_LABEL);
-
-    cairo_context->restore();
   }
 
 
@@ -232,86 +237,75 @@ private:
     int iat = active_boost_readings->iat;
     int knock = active_boost_readings->knock;
 
-    cairo_context->save();
 
     cairo_context->set_font_face(number_font);
 
     // Boost
     snprintf(boost_psi_current_formatted, 7, "% 3.1f", active_boost_readings->boost_psi_current);
-    if (std::strcmp(boost_psi_current_formatted, last_boost_psi_current_formatted) != 0) {
-      strncpy(last_boost_psi_current_formatted, boost_psi_current_formatted, 7);
-      cairo_context->set_source(black_color);
-      cairo_context->rectangle(0, 14, 128, 32);
-      cairo_context->fill();
+    strncpy(last_boost_psi_current_formatted, boost_psi_current_formatted, 7);
+    cairo_context->set_source(black_color);
+    cairo_context->rectangle(0, 14, 128, 32);
+    cairo_context->fill();
 
-      if (active_boost_readings->boost_psi_current < 0)
-        cairo_context->set_source(blue_color);
-      else if (active_boost_readings->boost_psi_current < BOOST_PSI_MAX)
-        cairo_context->set_source(green_color);
-      else
-        cairo_context->set_source(red_color);
-      cairo_context->set_font_size(45.0);
-      cairo_context->get_text_extents(boost_psi_current_formatted, extents);
-      cairo_context->move_to(BOOST_X_CENTER-(extents.width/2 + extents.x_bearing), 45);
-      cairo_context->show_text(boost_psi_current_formatted);
-    }
+    if (active_boost_readings->boost_psi_current < 0)
+      cairo_context->set_source(blue_color);
+    else if (active_boost_readings->boost_psi_current < BOOST_PSI_MAX)
+      cairo_context->set_source(green_color);
+    else
+      cairo_context->set_source(red_color);
+    cairo_context->set_font_size(45.0);
+    cairo_context->get_text_extents(boost_psi_current_formatted, extents);
+    cairo_context->move_to(BOOST_X_CENTER-(extents.width/2 + extents.x_bearing), 45);
+    cairo_context->show_text(boost_psi_current_formatted);
 
     cairo_context->set_font_size(16.0);
 
     // IAT
     snprintf(iat_formatted, 5, "% 3d", iat);
-    if (std::strcmp(iat_formatted, last_iat_formatted) != 0) {
-      strncpy(last_iat_formatted, iat_formatted, 5);
-      cairo_context->set_source(black_color);
-      cairo_context->rectangle(IAT_X_CENTER - 16, 112, 32, 16);
-      cairo_context->fill();
+    strncpy(last_iat_formatted, iat_formatted, 5);
+    cairo_context->set_source(black_color);
+    cairo_context->rectangle(IAT_X_CENTER - 16, 112, 32, 16);
+    cairo_context->fill();
 
-      if (iat > IAT_HOT_THRESHOLD)
-        cairo_context->set_source(red_color);
-      else if (iat < IAT_COLD_THRESHOLD)
-        cairo_context->set_source(blue_color);
-      else
-        cairo_context->set_source(green_color);
-      cairo_context->get_text_extents(iat_formatted, extents);
-      cairo_context->move_to(IAT_X_CENTER-(extents.width/2 + extents.x_bearing), 126);
-      cairo_context->show_text(iat_formatted);
-    }
+    if (iat > IAT_HOT_THRESHOLD)
+      cairo_context->set_source(red_color);
+    else if (iat < IAT_COLD_THRESHOLD)
+      cairo_context->set_source(blue_color);
+    else
+      cairo_context->set_source(green_color);
+    cairo_context->get_text_extents(iat_formatted, extents);
+    cairo_context->move_to(IAT_X_CENTER-(extents.width/2 + extents.x_bearing), 126);
+    cairo_context->show_text(iat_formatted);
 
     // P. MAX
     snprintf(boost_psi_max_formatted, 6, "% 2.1f", boost_psi_max);
-    if (std::strcmp(boost_psi_max_formatted, last_boost_psi_max_formatted) != 0) {
-      strncpy(last_boost_psi_max_formatted, boost_psi_max_formatted, 6);
-      cairo_context->set_source(black_color);
-      cairo_context->rectangle(PMAX_X_CENTER-25, 112, 50, 16);
-      cairo_context->fill();
-      if (boost_psi_max < 0)
-        cairo_context->set_source(blue_color);
-      else if (boost_psi_max < BOOST_PSI_MAX)
-        cairo_context->set_source(green_color);
-      else
-        cairo_context->set_source(red_color);
-      cairo_context->get_text_extents(boost_psi_max_formatted, extents);
-      cairo_context->move_to(PMAX_X_CENTER-(extents.width/2 + extents.x_bearing), 126);
-      cairo_context->show_text(boost_psi_max_formatted);
-    }
+    strncpy(last_boost_psi_max_formatted, boost_psi_max_formatted, 6);
+    cairo_context->set_source(black_color);
+    cairo_context->rectangle(PMAX_X_CENTER-25, 112, 50, 16);
+    cairo_context->fill();
+    if (boost_psi_max < 0)
+      cairo_context->set_source(blue_color);
+    else if (boost_psi_max < BOOST_PSI_MAX)
+      cairo_context->set_source(green_color);
+    else
+      cairo_context->set_source(red_color);
+    cairo_context->get_text_extents(boost_psi_max_formatted, extents);
+    cairo_context->move_to(PMAX_X_CENTER-(extents.width/2 + extents.x_bearing), 126);
+    cairo_context->show_text(boost_psi_max_formatted);
 
     // Knock
     snprintf(knock_formatted, 4, "%2d", knock);
-    if (std::strcmp(knock_formatted, last_knock_formatted) != 0) {
-      strncpy(last_knock_formatted, knock_formatted, 4);
-      cairo_context->set_source(black_color);
-      cairo_context->rectangle(KNOCK_X_CENTER-15, 112, 30, 16);
-      cairo_context->fill();
-      if (knock > KNOCK_PROBLEM_THRESHOLD)
-        cairo_context->set_source(red_color);
-      else
-        cairo_context->set_source(green_color);
-      cairo_context->get_text_extents(knock_formatted, extents);
-      cairo_context->move_to(KNOCK_X_CENTER-(extents.width/2 + extents.x_bearing), 126);
-      cairo_context->show_text(knock_formatted);
-    }
-
-    cairo_context->restore();
+    strncpy(last_knock_formatted, knock_formatted, 4);
+    cairo_context->set_source(black_color);
+    cairo_context->rectangle(KNOCK_X_CENTER-15, 112, 30, 16);
+    cairo_context->fill();
+    if (knock > KNOCK_PROBLEM_THRESHOLD)
+      cairo_context->set_source(red_color);
+    else
+      cairo_context->set_source(green_color);
+    cairo_context->get_text_extents(knock_formatted, extents);
+    cairo_context->move_to(KNOCK_X_CENTER-(extents.width/2 + extents.x_bearing), 126);
+    cairo_context->show_text(knock_formatted);
   }
 
   float *boosts = new float[127];
@@ -327,7 +321,6 @@ private:
     boosts_current_index = (boosts_current_index + 1) % 128;
     boosts[boosts_current_index] = active_boost_readings->boost_psi_current;
 
-    cairo_context->save();
     cairo_context->set_antialias(Cairo::Antialias::ANTIALIAS_NONE);
     cairo_context->set_line_width(1.0);
 
@@ -356,13 +349,12 @@ private:
     cairo_context->move_to(0, 73);
     cairo_context->line_to(128, 73);
     cairo_context->stroke();
-    cairo_context->restore();
   }
 
   void render_lcd() {
     draw_numbers();
     draw_graph();
-    memcpy(front_buffer, back_buffer, buflen);
+    fast_memcpy(front_buffer, back_buffer, buflen);
   }
 
 };
@@ -374,9 +366,9 @@ int main()
 
   // Simulation stuff
   float boost_psi_step = 0.01;
-  int iat_count_interval = 25;
+  int iat_count_interval = 100;
   int iat_step = 1;
-  int knock_count_interval = 100;
+  int knock_count_interval = 1000;
   int knock_step = 1;
   int loop_counter = 0;
 
